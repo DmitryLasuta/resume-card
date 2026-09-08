@@ -1,32 +1,74 @@
-# React + TypeScript + Vite
+# Резюме-карточка + мини-админка
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Next.js 16 (App Router) + React 19 + Tailwind 4. Весь контент страницы —
+тексты, места работы, навыки, контакты, SEO — редактируется через `/admin`
+и хранится одним JSON-файлом. Базы данных нет, всё укладывается в бесплатный
+тариф Vercel.
 
-Currently, two official plugins are available:
+## Как это устроено
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```
+app/(site)      публичная страница резюме
+app/(admin)     админка и форма входа
+app/api         GET/PUT контента и вход/выход
+lib/            схема контента, нормализация, хранилище, авторизация
+components/     компоненты сайта и редакторы админки
+proxy.ts        не пускает в /admin без сессии
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Хранилище — `lib/storage.ts`:
+
+- **на Vercel** — один блоб `resume/content.json` в Vercel Blob;
+- **локально** (когда нет `BLOB_READ_WRITE_TOKEN`) — файл `.data/content.json`;
+- если в хранилище пусто, отдаются значения из `lib/default-content.ts`.
+
+Публичная страница статическая с ISR (5 минут). После сохранения из админки
+кэш сбрасывается сразу, так что правки видны без передеплоя.
+
+Авторизация — один пароль и подписанная HMAC-кука на 14 дней, без БД сессий.
+
+## Локальный запуск
+
+```bash
+npm install
+cp .env.example .env.local   # и задайте ADMIN_PASSWORD
+npm run dev
+```
+
+Сайт — http://localhost:3000, админка — http://localhost:3000/admin.
+
+## Деплой на Vercel
+
+1. Импортировать репозиторий в Vercel (фреймворк определится сам).
+2. Storage → Create Database → **Blob**, подключить к проекту.
+   Vercel сам добавит переменную `BLOB_READ_WRITE_TOKEN`.
+3. В Settings → Environment Variables добавить:
+   - `ADMIN_PASSWORD` — пароль от админки (обязательно);
+   - `ADMIN_SECRET` — произвольная длинная строка для подписи куки
+     (необязательно; без неё подпись строится на пароле, и смена пароля
+     разлогинивает все сессии).
+4. Задеплоить и зайти на `/admin`.
+
+Всё перечисленное — в пределах бесплатного плана Hobby.
+
+## Скрипты
+
+| Команда | Что делает |
+| --- | --- |
+| `npm run dev` | локальная разработка |
+| `npm run build` | продакшен-сборка |
+| `npm run start` | запуск собранного приложения |
+| `npm run lint` | oxlint |
+| `npm run og` | перегенерировать `public/og-image.png` |
+
+## Админка
+
+Вкладки: **Шапка**, **О себе**, **Опыт**, **Навыки**, **Контакты**, **SEO**, **JSON**.
+
+- места работы, ключевые пункты, группы навыков, контакты и кнопки —
+  добавляются, переупорядочиваются (↑ ↓) и удаляются;
+- у секций «О себе», «Опыт», «Навыки», «Контакты» есть переключатель показа;
+- вкладка **JSON** — резервная копия, скачивание и массовые правки;
+- `Ctrl`/`⌘` + `S` — сохранить.
+
+`GET /api/content` отдаёт текущий контент публично — удобно для бэкапа.
