@@ -19,7 +19,7 @@ proxy.ts        не пускает в /admin без сессии
 Хранилище — `lib/storage.ts`:
 
 - **на Vercel** — один блоб `resume/content.json` в Vercel Blob;
-- **локально** (когда нет `BLOB_READ_WRITE_TOKEN`) — файл `.data/content.json`;
+- **локально** (когда переменных Blob-стора нет) — файл `.data/content.json`;
 - если в хранилище пусто, отдаются значения из `lib/default-content.ts`.
 
 Публичная страница статическая с ISR (5 минут). После сохранения из админки
@@ -40,8 +40,11 @@ npm run dev
 ## Деплой на Vercel
 
 1. Импортировать репозиторий в Vercel (фреймворк определится сам).
-2. Storage → Create Database → **Blob**, подключить к проекту.
-   Vercel сам добавит переменную `BLOB_READ_WRITE_TOKEN`.
+2. Storage → Create Database → **Blob**, подключить к проекту. Переменные
+   Vercel добавит сам: в новой версии интеграции это `BLOB_STORE_ID`
+   (авторизация идёт по `VERCEL_OIDC_TOKEN`, который платформа выдаёт
+   функциям в рантайме), в старой — `BLOB_READ_WRITE_TOKEN`. Руками их
+   заводить не нужно; `BLOB_WEBHOOK_PUBLIC_KEY` проекту не требуется.
 3. В Settings → Environment Variables добавить:
    - `ADMIN_PASSWORD` — пароль от админки (обязательно);
    - `ADMIN_SECRET` — произвольная длинная строка для подписи куки

@@ -9,18 +9,20 @@ import { normalizeContent } from './normalize';
 /**
  * Хранилище контента без БД.
  *
- * Прод (Vercel): один JSON-файл в Vercel Blob. Нужна переменная окружения
- * BLOB_READ_WRITE_TOKEN — Vercel подставляет её сам, когда к проекту
- * подключён Blob-стор.
+ * Прод (Vercel): один JSON-файл в Vercel Blob. Переменные подставляет сам
+ * Vercel, когда к проекту подключён Blob-стор — в зависимости от версии
+ * интеграции это либо BLOB_READ_WRITE_TOKEN (старая), либо BLOB_STORE_ID
+ * вместе с VERCEL_OIDC_TOKEN, который выдаётся функциям в рантайме (новая).
  *
- * Локально: если токена нет, тот же JSON лежит в .data/content.json.
+ * Локально: если ни того, ни другого нет, тот же JSON лежит в
+ * .data/content.json.
  */
 
 const BLOB_PATHNAME = 'resume/content.json';
 const LOCAL_PATH = '.data/content.json';
 
 function hasBlob(): boolean {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
 }
 
 async function readLocal(): Promise<IContent | null> {
@@ -85,8 +87,9 @@ export async function writeContent(content: IContent): Promise<void> {
   if (process.env.VERCEL) {
     // на Vercel файловая система только для чтения — нужен Blob-стор
     throw new Error(
-      'не подключён Vercel Blob: создайте Blob-стор в дашборде проекта, ' +
-        'чтобы появилась переменная BLOB_READ_WRITE_TOKEN',
+      'не подключён Vercel Blob: создайте Blob-стор в дашборде проекта и ' +
+        'подключите его к нему — Vercel сам добавит BLOB_STORE_ID ' +
+        '(или BLOB_READ_WRITE_TOKEN в старой версии интеграции)',
     );
   }
 
