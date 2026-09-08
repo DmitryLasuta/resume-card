@@ -39,3 +39,5 @@ next-env.d.ts
 sw.*
 workbox-*
 swe-worker-*
+# local content store (режим без Vercel Blob)
+/.data
