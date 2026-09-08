@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { head, put } from '@vercel/blob';
+import { BlobNotFoundError, get, put, type BlobAccessType } from '@vercel/blob';
 
 import type { IContent } from './content-types';
 import { defaultContent } from './default-content';
@@ -20,6 +20,13 @@ import { normalizeContent } from './normalize';
 
 const BLOB_PATHNAME = 'resume/content.json';
 const LOCAL_PATH = '.data/content.json';
+
+/**
+ * Режим доступа стора. Vercel создаёт новые сторы приватными, и обращаться
+ * к ним нужно тем же режимом, иначе API отвечает ошибкой. Для публичного
+ * стора достаточно задать BLOB_ACCESS=public.
+ */
+const BLOB_ACCESS: BlobAccessType = process.env.BLOB_ACCESS === 'public' ? 'public' : 'private';
 
 function hasBlob(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
@@ -45,30 +52,25 @@ async function writeLocal(content: IContent): Promise<void> {
 }
 
 async function readBlob(): Promise<IContent | null> {
-  let url: string;
-  let version: string;
   try {
-    const meta = await head(BLOB_PATHNAME);
-    url = meta.url;
-    version = String(meta.uploadedAt.getTime());
-  } catch {
-    // блоба ещё нет — первый запуск
+    // useCache: false — читаем из origin, чтобы правки из админки были видны сразу
+    const result = await get(BLOB_PATHNAME, { access: BLOB_ACCESS, useCache: false });
+    if (!result || result.statusCode !== 200) return null;
+    return normalizeContent(await new Response(result.stream).json());
+  } catch (error) {
+    // блоба ещё нет — первый запуск, отдаём значения по умолчанию
+    if (error instanceof BlobNotFoundError) return null;
+    console.error('Не удалось прочитать контент из Vercel Blob:', error);
     return null;
   }
-
-  // URL блоба кэшируется на CDN, поэтому добавляем метку версии из head()
-  const response = await fetch(`${url}?v=${version}`, { cache: 'no-store' });
-  if (!response.ok) return null;
-  return normalizeContent(await response.json());
 }
 
 async function writeBlob(content: IContent): Promise<void> {
   await put(BLOB_PATHNAME, `${JSON.stringify(content, null, 2)}\n`, {
-    access: 'public',
+    access: BLOB_ACCESS,
     contentType: 'application/json',
     addRandomSuffix: false,
     allowOverwrite: true,
-    cacheControlMaxAge: 60,
   });
 }
 
